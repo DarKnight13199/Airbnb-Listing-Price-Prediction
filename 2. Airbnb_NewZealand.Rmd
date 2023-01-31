@@ -1,0 +1,586 @@
+---
+title: "Airbnb Listing Price Prediction in New Zealand"
+author: "Hamza Khan"
+output:
+  html_document: default
+---
+
+```{r setup, include=FALSE} 
+knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
+```
+
+# 1) Introduction
+
+Airbnb is an online marketplace that allows the property owners to rent out their properties to travelers who are looking for a place to stay for a short period of time. This stay can range from 1 to 365 days. Property owners can rent out their properties through listings. Listings is like advertising your property for rent. Through Airbnb, property owners or hosts can make a listing of their property by mentioning the features of their housing space such as number of rooms, number of beds etcetera. Moreover, the calendar feature by Airbnb gives its users to list or in other words, a full control on when they want to share their housing spaces (i.e. property availability), for how long they want to share their property and the rental price they want to charge (Airbnb, n.d.). 
+	My project focuses on predicting rental prices for short-term home-stays and experiences during travel. It is important to have an idea of some homestay rental charges and how much they should be, if we decide to travel away from our home. Airbnb is a platform that can easily book our stay at some property according to our conditions and the price we can afford to pay. This project would help people in making data driven decisions when choosing to book their next property for stay during travel.
+	
+# 2) Methodology and Results
+	Airbnb provides data of its listings for various countries such as New Zealand, Ireland, and states such as Toronto, Canada and Seattle, USA. The data is available on their website (Inside Airbnb, n.d.). I have used the dataset of New Zealand for the year 2021 – 2022 which contains data from December 2021 to the next 365 days. The data set contains two files named listings and calendar. Originally, the listings file contained 38409 rows and 80 columns and the calendar file contained 14018930 rows and 7 columns. Both of these files are useful for analysis which is divided majorly into three parts:
+•	Exploratory Data Analysis
+•	Preprocessing
+•	Prediction of Rental Prices
+All three parts are inter-related and inter-dependent on each other and are not completely separated from each other and they do overlap among each other (i.e. some pre-processing has been done in the Exploratory Data Analysis portion).
+
+# 3) Exploring Datasets
+```{r}
+# Set current working directory.
+
+#This needs to be set once where the files are stored and is subjective to every user.
+
+#setwd("C:/Users/Humza/Desktop/Harvard Capstone")
+```
+***
+
+
+```{r}
+#Installing required Libraries.
+
+if(!require(lubridate)) install.packages("lubridate", repos = "http://cran.us.r-project.org")
+if(!require(ggplot2)) install.packages("ggplot2", repos = "http://cran.us.r-project.org")
+if(!require(dplyr)) install.packages("dplyr", repos = "http://cran.us.r-project.org")
+if(!require(tidyr)) install.packages("tidyr", repos = "http://cran.us.r-project.org")
+if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+if(!require(readr)) install.packages("readr", repos = "http://cran.us.r-project.org")
+if(!require(reshape2)) install.packages("reshape2", repos = "http://cran.us.r-project.org")
+if(!require(caret)) install.packages("caret", repos = "http://cran.us.r-project.org")
+if(!require(e1071)) install.packages("e1071", repos = "http://cran.us.r-project.org")
+if(!require(randomForest)) install.packages("randomForest", repos = "http://cran.us.r-project.org")
+if(!require(gbm)) install.packages("gbm", repos = "http://cran.us.r-project.org")
+if(!require(glmnet)) install.packages("glmnet", repos = "http://cran.us.r-project.org")
+if(!require(ModelMetrics)) install.packages("ModelMetrics", repos = "http://cran.us.r-project.org")
+```
+
+
+#### Libraries used in this project:
+```{r}
+## For Pre-processing and Visualisations
+library(lubridate)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(tidyverse)
+library(readr)
+library(reshape2)
+
+#For Prediction
+library(caret)
+library(e1071)
+library(randomForest)
+library(gbm)
+library(glmnet)
+library(ModelMetrics)
+```
+
+## Part 1: Exploring Datasets ---
+***
+
+### Calendar Dataset
+```{r}
+#Reading Calendar File: 
+calendar <- read.csv2("calendar.csv.gz", header = T, sep =",")
+```
+
+
+```{r}
+print(paste0('We have ', length(unique(calendar$date)), ' days and ', 
+      length(unique(calendar$listing_id)), ' unique listings in the calendar data.'))
+```
+***
+
+```{r}
+# Calculating null values in each column:
+colSums(is.na(calendar))
+```
+***
+
+```{r}
+# Printing first 6 rows from the dataset:
+head(calendar)
+```
+***
+```{r}
+# Size of the dataset:
+dim(calendar)
+```
+
+#### Airbnb New Zealand Calendar
+```{r}
+#Encoding 'available' column in new data set and converting 'date' column to date format. 
+
+calendar_new <- calendar[c('date', 'available')]
+calendar_new$busy <- ifelse(calendar_new$available == "f", 0, 1)
+calendar_new <- aggregate(busy ~ date, data = calendar_new, mean)
+calendar_new$date <- as_date(calendar_new$date)
+```
+
+
+```{r}
+#Graph to see how busy is New Zealand throughout the year. 
+
+ggplot(data=calendar_new, aes(x=date, y=busy)) +
+  geom_line() +
+  ggtitle("Airbnb New Zealand Calendar") +
+  ylab("% busy") +
+  theme(plot.title = element_text(size=20),
+  axis.text.x = element_text(size=10),
+  axis.text.y = element_text(size=10))
+```
+#### Visualising Price change over months.
+```{r}
+#formatting date column and removing dollar sign from price.
+calendar$date <- as_date(calendar$date)
+calendar$price <- as.numeric(gsub("[$,]", "", calendar$price))
+```
+
+```{r}
+#calculating mean price for each month
+mean_of_month <- calendar %>%
+  group_by(month = format(calendar$date, '%B')) %>%
+  summarise(mean_price = mean(price))
+
+mean_of_month <- mean_of_month %>% drop_na()
+```
+
+```{r}
+#plotting listing price change over months
+ggplot(data = mean_of_month, aes(x = mean_price, y = month)) + 
+  geom_bar(stat = "identity", fill = "blue", orientation = "y") +
+  xlab("Average Monthly Price") +
+  ylab(" Month") +
+  ggtitle("Listing Price Change Over Months")
+```
+#### Visualising price change over the day of week. 
+```{r}
+#removing columns from calendar dataset
+calendar <- select(calendar, -c(adjusted_price, minimum_nights, maximum_nights))
+```
+
+```{r}
+#adding a column day of the week by using lubridate package
+calendar$dayofweek <- wday(calendar$date, label = TRUE)
+
+#creating a new data frame with only two columns day of week and mean price.
+
+price_week <- calendar[, c("dayofweek","price")]
+price_week <- aggregate( . ~ dayofweek, price_week, mean)
+price_week <- price_week[order(price_week$dayofweek),]
+```
+
+```{r}
+#plotting day of week against price.
+ggplot(price_week, aes(x=dayofweek, y=price, group=1)) + 
+  geom_line() +
+  geom_point() +
+  ggtitle("Price change during day of week") +
+  xlab("Day of Week") +
+  ylab("Mean Price")
+```
+## Part 1: Exploring Datasets (continued) 
+
+### Listings Dataset
+
+```{r}
+#Reading Listings
+listings <- read_csv("listings.csv.gz", col_names = T)
+```
+
+```{r}
+#printing the first 6 rows of listing dataset.
+head(listings)
+```
+
+```{r}
+#counting number of listings by neighbourhood
+listings %>% 
+  group_by(neighbourhood) %>% 
+  count() %>% 
+  arrange(desc(n)) %>% 
+  head(10)
+```
+Auckland, New Zealand has highest number of listings with 3637.
+***
+## Exploring Price against multiple variables.
+```{r}
+listings$price <- parse_number(listings$price)
+
+max(listings$price)
+
+quantile(listings$price, 0.01) 
+quantile(listings$price, 0.95)
+```
+The highest listing is of $53788 dollars, looks like a penthouse. 
+
+The 95th percentile is 671 and lower 1st percentile is 35.
+***
+
+```{r}
+#sorting listings by region and median price.
+sort_price = listings %>% 
+  filter(price <= 671 & price > 35) %>% 
+  group_by(region_name) %>% 
+  summarize(median_price = median(price)) %>% 
+  arrange(median_price) %>% 
+  pull(region_name)
+```
+
+```{r}
+#plotting Region vs Price
+ggplot(data = listings %>% filter(price <= 671 & price > 35), 
+       aes(x = price, y = region_name)) + 
+  geom_boxplot() + 
+  scale_y_discrete(limits = sort_price) + 
+  ggtitle("Region vs. Price") +
+  xlab("Price") +
+  ylab("Region")+
+  theme(axis.text.x=element_blank(), axis.ticks.x=element_blank(),
+        axis.text.y=element_text(size=5), axis.ticks.y=element_blank(),
+        plot.title=element_text(hjust=0.5, size=15))
+
+ggsave("Region_vs_Price.png", width = 30, height = 60, units = 'cm')
+```
+```{r}
+#plotting Host Type against price.
+ggplot(data = subset(listings, !is.na(host_is_superhost)) %>% filter(price <= 671 & price > 35), aes(x = host_is_superhost, y = price)) +
+  geom_boxplot() +
+  ggtitle("Host type vs. Price")
+```
+
+```{r}
+#sorting listings by property type and median price
+sort_price = listings %>% 
+  filter(price <= 671 & price > 35) %>% 
+  group_by(property_type) %>% 
+  summarize(median_price = median(price)) %>% 
+  arrange(median_price) %>% 
+  pull(property_type)
+
+#plotting Property_type against price. 
+ggplot(data = subset(listings, !is.na(property_type)) %>% filter(price <= 671 & price > 35), 
+       aes(x = price, y = property_type)) +
+  geom_boxplot() +
+  scale_y_discrete(limits = sort_price) +
+  ggtitle("Property type vs. Price") +
+  theme(axis.text.x=element_blank(), axis.ticks.x=element_blank(),
+        axis.text.y=element_text(size=5), axis.ticks.y=element_blank(),
+        plot.title=element_text(hjust=0.5, size=15))
+
+ggsave("Property_vs_Price.png", width = 20, height = 40, units = 'cm')
+```
+
+```{r}
+#Exploring property type variable.
+head(sort(table(listings$property_type), decreasing = TRUE))
+```
+Entire Residential home is the most common listing by property type.
+***
+
+
+```{r}
+#Sorting listings by room_type and median price.
+sort_price = listings %>% 
+  filter(price <= 671 & price > 35) %>% 
+  group_by(room_type) %>% 
+  summarize(median_price = median(price)) %>% 
+  arrange(median_price) %>% 
+  pull(room_type)
+
+#plotting room_type aginst price. 
+ggplot(data = subset(listings, !is.na(room_type)) %>% filter(price <= 671 & price > 35), 
+       aes(y = price, x = room_type)) +
+  geom_boxplot() +
+  scale_y_discrete(limits = sort_price) +
+  ggtitle("Room type vs. Price")
+```
+```{r}
+#plotting stacked histogram by price and frequency of room_type
+ggplot(data = subset(listings, !is.na(room_type)) %>% filter(price <= 671 & price > 35), 
+       aes(x = price, fill = room_type)) +
+  geom_histogram(bins = 100, position = "stack") +
+  xlab("Listing price in $") +
+  ggtitle("Room type by Price & Frequency")
+```
+
+```{r}
+#converting bathrooms_text column to numeric. 
+listings$bathrooms_text <- gsub("baths", "", listings$bathrooms_text)
+listings$bathrooms_text <- gsub("bath", "", listings$bathrooms_text)
+listings$bathrooms_text <- gsub(" shared", "", listings$bathrooms_text)
+listings$bathrooms_text <- gsub(" private", "", listings$bathrooms_text)
+listings$bathrooms_text <- gsub("Shared half-", "0.5", listings$bathrooms_text)
+listings$bathrooms_text <- gsub("Private half-", "0.5", listings$bathrooms_text)
+listings$bathrooms_text <- gsub("Half-", "0.5", listings$bathrooms_text)
+listings$bathrooms_text <- as.numeric(listings$bathrooms_text)
+
+#printing the most common number of bathrooms in dataset with their frequency. 
+head(sort(table(listings$bathrooms_text), decreasing = T))
+```
+24391 listings have only 1 bathroom.
+***
+
+```{r}
+col = c('host_listings_count', 'accommodates','bedrooms', 'beds', 'price', 'number_of_reviews', 
+       'review_scores_rating', 'reviews_per_month','bathrooms_text')
+
+subset_data <- listings[col] %>%
+  filter(price < 671 & price > 35)
+
+subset_data <- na.omit(subset_data)
+
+# Compute the correlation matrix
+corr <- cor(subset_data)
+melted_corr <- melt(corr)
+
+melted_corr$value <- round(melted_corr$value, 2)
+
+# Create the heatmap
+ggplot(data = melted_corr, aes(x = Var1, y = Var2, fill = value )) + 
+  geom_tile( aes(fill =value),color = "white") +
+  scale_fill_gradient(low = "white", high = "steelblue") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  xlab("") + ylab("")+
+  geom_text(aes(label = value), colour = "black", check_overlap = TRUE) 
+
+```
+
+```{r}
+listings_bed_bedrooms <- listings %>%
+  filter(price < 671 & price > 35) %>%
+  group_by(beds, bedrooms) %>%
+  summarize(count = n()) %>%
+  mutate(count = ifelse(is.na(count),0,count))
+
+ggplot(data = listings_bed_bedrooms, aes(x = beds, y = bedrooms, fill = count)) +
+  geom_tile() +
+  scale_fill_gradient(low = "white", high = "orange", name = "Count") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+  
+  ggtitle("Count of Listings by Bed and Bedroom")
+```
+
+```{r}
+listings_bathrooms_bedrooms <- listings %>%
+  filter(price < 671 & price > 35) %>%
+  group_by(bathrooms_text, bedrooms) %>%
+  summarize(count = n()) %>%
+  mutate(count = ifelse(is.na(count),0,count))
+
+ggplot(data = listings_bathrooms_bedrooms, aes(x = bathrooms_text, y = bedrooms, fill = count)) +
+  geom_tile() +
+  scale_fill_gradient(low = "white", high = "orange", name = "Count") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  ggtitle("Count of Listings by Bathrooms and Bedroom")
+```
+***
+# 3) Data Pre-Processing
+
+```{r}
+#Extracting data from amenities column.
+listings$amenities <- str_replace_all(listings$amenities,"[{}]","")
+listings$amenities <- str_replace_all(listings$amenities,"\"","")
+amenities_split <- str_split(listings$amenities, ",")
+
+total_amenities <- sapply(amenities_split, length)
+
+listings$Amenities_Offered = total_amenities
+```
+
+```{r}
+#creating a subset of listings dataset with most useful columns that will later will be used for machine learning. 
+
+col = c('price','host_is_superhost', 'host_identity_verified', 'instant_bookable', 'host_listings_count', 'host_total_listings_count','bedrooms', 'bathrooms_text', 'accommodates','beds', 'room_type', 'Amenities_Offered')
+
+cleaned_data <- listings[col]
+
+cleaned_data <- cleaned_data %>%
+  filter(price <= 671 & price >35) %>%
+  rename("bathrooms" = "bathrooms_text") %>%
+  na.omit(cleaned_data)
+
+#Encoding text and logical columns from text to numeric. 
+cleaned_data$host_is_superhost <- as.integer(as.logical(cleaned_data$host_is_superhost))
+cleaned_data$instant_bookable <- as.integer(as.logical(cleaned_data$instant_bookable))
+cleaned_data$host_identity_verified <- as.integer(as.logical(cleaned_data$host_identity_verified))
+
+cleaned_data$room_type <- gsub("Entire home/apt", 0, cleaned_data$room_type)
+cleaned_data$room_type <- gsub("Private room", 1, cleaned_data$room_type)
+cleaned_data$room_type <- gsub("Shared room", 2, cleaned_data$room_type)
+cleaned_data$room_type <- gsub("Hotel room", 3, cleaned_data$room_type)
+
+cleaned_data$room_type <- as.numeric(cleaned_data$room_type)
+```
+
+```{r}
+str(cleaned_data)
+```
+
+
+```{r}
+#Checking if there are any NA values left in the data. 
+colSums((is.na(cleaned_data)))
+```
+
+
+```{r}
+#saving the dataframe for machine learning script. 
+write.csv(cleaned_data, "cleaned_data.csv", row.names = F)
+```
+
+# 4) Prediction
+
+Data that has been preprocessed is saved as an excel file and later imported as a data frame in a different file for prediction for better readability of the code. 
+The price of listings is separated as dependent variable and a natural log is applied as all of the independent variables have value in single or double digits.
+Therefore model is: ln(Price)=B0 + B1 * X + u ~ A change in X (independent variable) by one unit (∆X=1) is associated with an (exp(B1) - 1)*100 % change in Price.
+
+The dataset is split into small subsets of train and testing sets that consist of random sampling without replacement of about 80 percent of the rows and 20 percent of the rows respectively. 
+Different Machine Learning algorithms are applied using these sets and their R2 Train, R2 Test, Mean Absolute Error (MAE), Mean Squared Error (MSE), and Mean Squared Error (RMSE) is stored in an evaluation data frame to evaluate the performance of each algorithm. 
+The ML algorithms used in prediction are; 
+
+Linear Regression 
+Lasso Regression 
+Decision Trees 
+Random Forest 
+Gradient 
+
+
+```{r}
+#creating Y and X variables.
+Y <- as.data.frame(log(cleaned_data[, 'price']))
+X <- cleaned_data[, colnames(cleaned_data) != 'price']
+```
+
+```{r}
+#Splitting dataset into Test and Train
+splitIndex <- createDataPartition(Y$price, p = 0.8, list = FALSE)
+X_train <- X[splitIndex, ]
+Y_train <- Y[splitIndex]
+X_test <- X[-splitIndex, ]
+Y_test <- Y[-splitIndex]
+```
+Train and Test set are split in 80% and 20% respectively. Since it is a large dataset, it provides significant data to train the model and there are enough values to test the accuracy of the model. 
+
+### 1) Linear Regression
+```{r}
+# Linear Regression
+lin_reg <- train(X_train, Y_train, method = "lm")
+lin_reg_pred_train <- predict(lin_reg, X_train)
+lin_reg_pred_test <- predict(lin_reg, X_test)
+
+# Plotting
+ggplot() +
+  geom_point(aes(x =Y_train, y =lin_reg_pred_train)) +
+  xlab ("Actual Values") +
+  ylab ("Predicted Values") +
+  ggtitle("Actual vs Predicted values Training Data")
+```
+
+
+### 2) Lasso Regression
+```{r}
+#Lasso Regression
+lasso_reg <- train(X_train, Y_train, method = "glmnet", tuneGrid = expand.grid(alpha = 0.01, lambda = 0.1))
+lasso_reg_pred_train <- predict(lasso_reg, X_train)
+lasso_reg_pred_test <- predict(lasso_reg, X_test)
+
+# Plotting
+plot(x = Y_train,  y= lasso_reg_pred_train, xlab = "Actual Values", ylab = "Predicted Values", 
+     main = "Actual vs Predicted values Training Data")
+```
+### 3) Decision Trees
+```{r}
+# Decision Trees
+dt <- train(X_train, Y_train, method = "rpart")
+dt_pred_train <- predict(dt, X_train)
+dt_pred_test <- predict(dt, X_test)
+
+# Plotting
+ggplot() +
+  geom_point(aes(x =Y_train, y =dt_pred_train)) +
+  xlab ("Actual Values") +
+  ylab ("Predicted Values") +
+  ggtitle("Actual vs Predicted values Training Data")
+```
+
+### 4) Random Forest
+```{r}
+# Random Forest
+rf <- randomForest(x = X_train, y = Y_train)
+rf_pred_train <- predict(rf, X_train)
+rf_pred_test <- predict(rf, X_test)
+
+# Plotting
+ggplot() +
+  geom_point(aes(x =Y_train, y =rf_pred_train)) +
+  xlab ("Actual Values") +
+  ylab ("Predicted Values") +
+  ggtitle("Actual vs Predicted values Training Data")
+```
+
+### 5)Gradient Boosting
+```{r}
+# Gradient Boosting
+gb <- gbm(Y_train ~ ., data = X_train, distribution = "gaussian", n.trees = 500)
+gb_pred_train <- predict(gb, X_train, n.trees = 500)
+gb_pred_test <- predict(gb, X_test, n.trees = 500)
+
+ggplot() +
+  geom_point(aes(x =Y_train, y =gb_pred_train)) +
+  xlab ("Actual Values") +
+  ylab ("Predicted Values") +
+  ggtitle("Actual vs Predicted values Training Data")
+```
+
+## 5) Results
+***
+### Evaluation Table
+```{r}
+rsq <- function (x, y) cor(x, y) ^ 2
+
+Evaluation_Table <- data.frame(Algorithm = c("Linear Regression", "Lasso Regression", 
+                                             "Decision Trees", "Random Forest", "Gradient Boosting"),
+                  R_square_train = c(rsq(lin_reg_pred_train, Y_train), rsq(lasso_reg_pred_train, Y_train), rsq(dt_pred_train, Y_train), rsq(rf_pred_train, Y_train), rsq(gb_pred_train, Y_train)),
+                        
+                  R_square_test = c(rsq(lin_reg_pred_test, Y_test), rsq(lasso_reg_pred_test, Y_test), rsq(dt_pred_test, Y_test), rsq(rf_pred_test, Y_test), rsq(gb_pred_test, Y_test)),
+                  
+                  MAE = c(MAE(lin_reg_pred_train, Y_train), MAE(lasso_reg_pred_train, Y_train), MAE(dt_pred_train, Y_train), MAE(rf_pred_train, Y_train), MAE(gb_pred_train, Y_train)),
+                  
+                  MSE = c(mse(lin_reg_pred_train, Y_train), mse(lasso_reg_pred_train, Y_train), mse(dt_pred_train, Y_train), mse(rf_pred_train, Y_train), mse(gb_pred_train, Y_train)),
+                  
+                  RMSE = c(RMSE(lin_reg_pred_train, Y_train), RMSE(lasso_reg_pred_train, Y_train), RMSE(dt_pred_train, Y_train), RMSE(rf_pred_train, Y_train), RMSE(gb_pred_train, Y_train))
+                  )
+
+Evaluation_Table
+```
+
+```{r}
+score <- data.frame(
+                 Algorithm = Evaluation_Table$Algorithm, 
+                 R_square_train = round(Evaluation_Table$R_square_train,2),
+                 R_square_test = round(Evaluation_Table$R_square_test,2)
+                 )
+
+melted_score <- melt(score, id.vars = "Algorithm")
+ggplot(melted_score, aes(y = Algorithm, x = variable, fill = value)) +
+  geom_tile() + 
+  scale_fill_gradient(low = "white", high = "purple", guide = "colorbar") +
+  theme(axis.text.x = element_text(angle = 0, hjust = 1)) +
+  xlab("") + ylab("")+
+  geom_text(aes(label = value), colour = "black", check_overlap = TRUE) 
+```
+
+The Random Forest algorithm performed the best as it had the least values for the error and was able to predict the listing price fifty-eight percent of the time accurately. Since it is a regression model rather than classification as we are attempting to predict the exact value of the log of the listing price, it is sensitive to small errors, and it is therefore difficult to achieve a high R-square on the test set. While exploring the calendar dataset, we saw that the price is not consistent, it changes by month and even by the day of the week. Thus, R-squared achieved through Random Forest is significant enough to regard it as a high R-square for this model.
+
+### Feature Importance:
+```{r}
+#calculating the importance of each variable used in the model. 
+importance <- varImp(rf, scale = FALSE)
+print(importance)
+```
+
+## 6) References
+Airbnb. (n.d.). Airbnb. https://www.airbnb.com/
+Inside Airbnb. (n.d.). http://insideairbnb.com/get-the-data/ 
+
+Links to Datasets:
+Calendar: http://data.insideairbnb.com/new-zealand/2022-11-08/data/calendar.csv.gz
+Listings: http://data.insideairbnb.com/new-zealand/2022-11-08/data/listings.csv.gz
+
