@@ -1,13 +1,21 @@
-# Airbnb-Listing-Price-Prediction
-This is a project for HarvardX, Data Science: Capstone.
+# Airbnb Listing Price Prediction
+This repository contains a collection of R scripts and data files related to the Airbnb Listing Price Prediction project. The aim of this project is to predict the price of Airbnb listings in New Zealand using machine learning.
 
-Datasets from insideairbnb.com:
-1: Calendar: http://data.insideairbnb.com/new-zealand/2022-02-09/data/calendar.csv.gz
-2: Listings: http://data.insideairbnb.com/new-zealand/2022-02-09/data/listings.csv.gz
+### Dataset
+The Airbnb Listing Price Prediction project uses the Inside Airbnb dataset, which contains information on Airbnb listings in New Zealand. The dataset is split into several files:
 
-Files:
-1. Airbnb_NewZealand_Report.pdf (Report in PDF format)
-2. Airbnb_NewZealand.Rmd   (R Markdown containg all the code and relevant sections.)
-3. Supervised Machine Learning.R (R script containing the code and results table of regression algorithms used in the project.)
-4. Cleaned_data.csv (This file is created in R Markdown file containing data only of the useful variables. This file is used in Supervised Machine Learning R script.)
+listings.csv: Contains information on Airbnb listings, including price, location, and features.
+calendar.csv: Contains availability and price information for each listing.
+These files can be downloaded from the Inside Airbnb website.
+
+
+### Files
+The repository contains the following files:
+
+Airbnb_NewZealand_Report.pdf: A report in PDF format that describes the analysis and findings of the project.
+Airbnb_NewZealand.Rmd: An R Markdown file containing all the code and relevant sections for the project. This file can be opened in RStudio or any other compatible editor to reproduce the results.
+Supervised Machine Learning.R: An R script containing the code and results table of regression algorithms used in the project.
+Cleaned_data.csv: A cleaned dataset containing only the relevant variables used in the analysis. This file is created in the R Markdown file and is used in the Supervised Machine Learning R script.
+
+
 
