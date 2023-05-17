@@ -4,11 +4,6 @@ This repository contains a collection of R scripts and data files related to the
 ### Dataset
 The Airbnb Listing Price Prediction project uses the Inside Airbnb dataset, which contains information on Airbnb listings in New Zealand. The dataset is split into several files:
 
-listings.csv: Contains information on Airbnb listings, including price, location, and features.
-calendar.csv: Contains availability and price information for each listing.
-These files can be downloaded from the Inside Airbnb website.
-
-
 ### Files
 The repository contains the following files:
 
